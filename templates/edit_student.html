@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Edit Student{% endblock %}
+{% block content %}
+<h2 class="mb-3">Update Student</h2>
+<form method="POST" class="card card-body shadow-sm">
+    <label class="form-label">Student Name</label>
+    <input type="text" name="name" value="{{ student.name }}" maxlength="100" class="form-control mb-3" required>
+    <label class="form-label">Email Address</label>
+    <input type="email" name="email" value="{{ student.email }}" maxlength="120" class="form-control mb-3" required>
+    <label class="form-label">Phone Number</label>
+    <input type="text" name="phone" value="{{ student.phone or '' }}" maxlength="15" class="form-control mb-3">
+    <label class="form-label">Course</label>
+    <input type="text" name="course" value="{{ student.course or '' }}" maxlength="100" class="form-control mb-3">
+    <label class="form-label">Address</label>
+    <textarea name="address" maxlength="255" class="form-control mb-3" rows="3">{{ student.address or '' }}</textarea>
+    <div><button type="submit" class="btn btn-success">Update Student</button>
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">Back</a></div>
+</form>
+{% endblock %}
