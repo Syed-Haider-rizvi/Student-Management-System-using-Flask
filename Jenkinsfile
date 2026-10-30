@@ -4,38 +4,33 @@ pipeline {
     options {
         timestamps()
         disableConcurrentBuilds()
-        skipDefaultCheckout(true)
     }
 
     environment {
-        APP_NAME = "StudentManagementFlask"
-        REPO_URL = "https://github.com/Syed-Haider-rizvi/Student-Management-System-using-Flask.git"
-        BRANCH = "main"
-        PROJECT_DIR = "Student Management System using Flask"
+        APP_NAME = "Student Management System using Flask"
+
         DEPLOY_PATH = "C:\\inetpub\\wwwroot\\Student Management System using Flask"
-        VENV = "C:\\inetpub\\wwwroot\\Student Management System using Flask\\venv"
+
+        VENV = ".venv"
+
         PYTHON = "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python310\\python.exe"
+
         APP_POOL = "Student Management System using Flask"
     }
 
     stages {
 
-        stage('Checkout') {
-            steps {
-                echo "Cloning Student Management System Repository..."
-                git branch: "${BRANCH}", url: "${REPO_URL}"
-            }
-        }
-
         stage('Validate Project') {
             steps {
+                echo "Checking Flask Project Files..."
+
                 bat """
-                    if not exist "%WORKSPACE%\\%PROJECT_DIR%\\app.py" (
+                    if not exist "%WORKSPACE%\\app.py" (
                         echo ERROR: app.py not found
                         exit /b 1
                     )
 
-                    if not exist "%WORKSPACE%\\%PROJECT_DIR%\\requirements.txt" (
+                    if not exist "%WORKSPACE%\\requirements.txt" (
                         echo ERROR: requirements.txt not found
                         exit /b 1
                     )
@@ -45,20 +40,23 @@ pipeline {
 
         stage('Setup Virtual Environment') {
             steps {
-                echo "Creating Python Virtual Environment..."
+                echo "Setting up Python Virtual Environment..."
+
                 bat """
                     if not exist "%PYTHON%" (
                         echo ERROR: Python not found
                         exit /b 1
                     )
 
-                    if not exist "%VENV%\\Scripts\\python.exe" (
-                        "%PYTHON%" -m venv "%VENV%"
+                    if not exist "%WORKSPACE%\\%VENV%\\Scripts\\python.exe" (
+                        "%PYTHON%" -m venv "%WORKSPACE%\\%VENV%"
                     )
 
-                    "%VENV%\\Scripts\\python.exe" -m pip install --upgrade pip
-                    "%VENV%\\Scripts\\python.exe" -m pip install -r "%WORKSPACE%\\%PROJECT_DIR%\\requirements.txt"
-                    "%VENV%\\Scripts\\python.exe" -m pip install waitress
+                    "%WORKSPACE%\\%VENV%\\Scripts\\python.exe" -m pip install --upgrade pip
+
+                    "%WORKSPACE%\\%VENV%\\Scripts\\python.exe" -m pip install -r "%WORKSPACE%\\requirements.txt"
+
+                    "%WORKSPACE%\\%VENV%\\Scripts\\python.exe" -m pip install pytest==7.4.2
                 """
             }
         }
@@ -66,37 +64,27 @@ pipeline {
         stage('Run Tests') {
             steps {
                 echo "Running Flask Project Tests..."
-                bat """
-                    cd /d "%WORKSPACE%\\%PROJECT_DIR%"
 
-                    if exist tests (
-                        "%VENV%\\Scripts\\python.exe" -m pip install pytest==7.4.2
-                        "%VENV%\\Scripts\\python.exe" -m pytest tests --maxfail=1 --disable-warnings
-                    ) else (
-                        echo No tests folder found. Skipping tests.
-                    )
+                bat """
+                    cd /d "%WORKSPACE%"
+
+                    "%WORKSPACE%\\%VENV%\\Scripts\\python.exe" -m pytest --maxfail=1 --disable-warnings
                 """
             }
         }
 
-        stage('Deploy Files') {
+        stage('Deploy to IIS') {
             steps {
-                echo "Deploying Student Management System to IIS..."
+                echo "Copying Flask Project Files to IIS..."
+
                 bat """
                     if not exist "%DEPLOY_PATH%" (
                         mkdir "%DEPLOY_PATH%"
                     )
 
-                    xcopy "%WORKSPACE%\\%PROJECT_DIR%\\*" "%DEPLOY_PATH%\\" /E /I /Y
-                """
-            }
-        }
+                    robocopy "%WORKSPACE%" "%DEPLOY_PATH%" /E /XD "%WORKSPACE%\\.git" "%WORKSPACE%\\.venv" "%WORKSPACE%@tmp" /XF "Jenkinsfile"
 
-        stage('Restart Flask Service') {
-            steps {
-                echo "Restarting Flask Windows Service..."
-                bat """
-                    powershell -NoProfile -ExecutionPolicy Bypass -Command "Restart-Service -Name '%APP_NAME%' -Force -ErrorAction Stop"
+                    if %ERRORLEVEL% GEQ 8 exit /b %ERRORLEVEL%
                 """
             }
         }
@@ -114,8 +102,9 @@ pipeline {
         stage('Deployment Verification') {
             steps {
                 echo "Checking Flask Application..."
+
                 bat """
-                    powershell -NoProfile -ExecutionPolicy Bypass -Command "try { \$response = Invoke-WebRequest -Uri 'http://127.0.0.1:8000/' -UseBasicParsing -TimeoutSec 20; exit 0 } catch { Write-Error \$_; exit 1 }"
+                    powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'http://127.0.0.1:8085/' -UseBasicParsing -TimeoutSec 20"
                 """
             }
         }
