@@ -9,19 +9,12 @@ pipeline {
 
     environment {
         APP_NAME = "StudentManagementFlask"
-
         REPO_URL = "https://github.com/Syed-Haider-rizvi/Student-Management-System-using-Flask.git"
-
         BRANCH = "main"
-
         PROJECT_DIR = "Student Management System using Flask"
-
         DEPLOY_PATH = "C:\\inetpub\\wwwroot\\Student Management System using Flask"
-
         VENV = "C:\\inetpub\\wwwroot\\Student Management System using Flask\\venv"
-
         PYTHON = "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python310\\python.exe"
-
         APP_POOL = "Student Management System using Flask"
     }
 
@@ -30,9 +23,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 echo "Cloning Student Management System Repository..."
-
-                git branch: "${BRANCH}",
-                    url: "${REPO_URL}"
+                git branch: "${BRANCH}", url: "${REPO_URL}"
             }
         }
 
@@ -55,7 +46,6 @@ pipeline {
         stage('Setup Virtual Environment') {
             steps {
                 echo "Creating Python Virtual Environment..."
-
                 bat """
                     if not exist "%PYTHON%" (
                         echo ERROR: Python not found
@@ -67,9 +57,7 @@ pipeline {
                     )
 
                     "%VENV%\\Scripts\\python.exe" -m pip install --upgrade pip
-
                     "%VENV%\\Scripts\\python.exe" -m pip install -r "%WORKSPACE%\\%PROJECT_DIR%\\requirements.txt"
-
                     "%VENV%\\Scripts\\python.exe" -m pip install waitress
                 """
             }
@@ -78,13 +66,11 @@ pipeline {
         stage('Run Tests') {
             steps {
                 echo "Running Flask Project Tests..."
-
                 bat """
                     cd /d "%WORKSPACE%\\%PROJECT_DIR%"
 
                     if exist tests (
                         "%VENV%\\Scripts\\python.exe" -m pip install pytest==7.4.2
-
                         "%VENV%\\Scripts\\python.exe" -m pytest tests --maxfail=1 --disable-warnings
                     ) else (
                         echo No tests folder found. Skipping tests.
@@ -96,7 +82,6 @@ pipeline {
         stage('Deploy Files') {
             steps {
                 echo "Deploying Student Management System to IIS..."
-
                 bat """
                     if not exist "%DEPLOY_PATH%" (
                         mkdir "%DEPLOY_PATH%"
@@ -110,7 +95,6 @@ pipeline {
         stage('Restart Flask Service') {
             steps {
                 echo "Restarting Flask Windows Service..."
-
                 bat """
                     powershell -NoProfile -ExecutionPolicy Bypass -Command "Restart-Service -Name '%APP_NAME%' -Force -ErrorAction Stop"
                 """
@@ -130,9 +114,8 @@ pipeline {
         stage('Deployment Verification') {
             steps {
                 echo "Checking Flask Application..."
-
                 bat """
-                    powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'http://127.0.0.1:8000/' -UseBasicParsing -TimeoutSec 20"
+                    powershell -NoProfile -ExecutionPolicy Bypass -Command "try { \$response = Invoke-WebRequest -Uri 'http://127.0.0.1:8000/' -UseBasicParsing -TimeoutSec 20; exit 0 } catch { Write-Error \$_; exit 1 }"
                 """
             }
         }
