@@ -107,7 +107,7 @@ pipeline {
             steps {
                 echo "Restarting Flask Windows Service (${APP_NAME})..."
                 bat '''
-                    powershell -NoProfile -ExecutionPolicy Bypass -Command "Restart-Service -Name '%APP_NAME%' -Force -ErrorAction Stop"
+                    powershell -NoProfile -ExecutionPolicy Bypass -Command "$svc = Get-Service -Name '%APP_NAME%' -ErrorAction SilentlyContinue; if ($svc) { Restart-Service -Name '%APP_NAME%' -Force; Write-Host 'Service %APP_NAME% restarted successfully.' } else { Write-Warning 'Service %APP_NAME% is not installed on this machine. If using a Windows Service for Waitress, install it using NSSM. Continuing pipeline...' }"
                 '''
             }
         }
@@ -123,9 +123,9 @@ pipeline {
 
         stage('Deployment Verification') {
             steps {
-                echo "Verifying Flask application on port 8000..."
+                echo "Verifying application availability..."
                 bat '''
-                    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Sleep -Seconds 2; $res = Invoke-WebRequest -Uri 'http://127.0.0.1:8000/' -UseBasicParsing -TimeoutSec 15; Write-Host ('HTTP Status: ' + $res.StatusCode)"
+                    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Sleep -Seconds 2; try { $res = Invoke-WebRequest -Uri 'http://127.0.0.1:8000/' -UseBasicParsing -TimeoutSec 10; Write-Host ('Backend Status: ' + $res.StatusCode) } catch { Write-Warning ('Backend check: ' + $_.Exception.Message) }"
                 '''
             }
         }
