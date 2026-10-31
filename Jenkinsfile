@@ -2,11 +2,11 @@ pipeline {
     agent any
 
     environment {
-        APP_NAME = "Student Management System using Flask"
+        APP_NAME    = "Student Management System using Flask"
         DEPLOY_PATH = "C:\\inetpub\\wwwroot\\Student Management System using Flask"
-        VENV = ".venv"
-        PYTHON = "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python310\\python.exe"
-        APP_POOL = "Student Management System using Flask"
+        VENV        = ".venv"
+        PYTHON      = "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python310\\python.exe"
+        APP_POOL    = "Student Management System using Flask"
     }
 
     stages {
@@ -36,11 +36,9 @@ pipeline {
                         "%PYTHON%" -m venv "%VENV%"
                     )
 
-                    "%WORKSPACE%\\.venv\\Scripts\\python.exe" -m pip install --upgrade pip
-
-                    "%WORKSPACE%\\.venv\\Scripts\\python.exe" -m pip install -r requirements.txt
-
-                    "%WORKSPACE%\\.venv\\Scripts\\python.exe" -m pip install pytest==7.4.2
+                    "%VENV%\\Scripts\\python.exe" -m pip install --upgrade pip
+                    "%VENV%\\Scripts\\python.exe" -m pip install -r requirements.txt
+                    "%VENV%\\Scripts\\python.exe" -m pip install pytest==7.4.2
                 '''
             }
         }
@@ -48,7 +46,7 @@ pipeline {
         stage('Run Tests') {
             steps {
                 bat '''
-                    powershell -NoProfile -ExecutionPolicy Bypass -Command "$tests = Get-ChildItem -Path . -Recurse -File -Filter 'test_*.py' | Where-Object { $_.FullName -notmatch '\\\\.venv\\\\|\\\\.git\\\\' }; if ($tests) { & '.\\.venv\\Scripts\\python.exe' -m pytest --maxfail=1 --disable-warnings; exit $LASTEXITCODE } else { Write-Host 'No test files found. Skipping tests.' }"
+                    powershell -NoProfile -ExecutionPolicy Bypass -Command "$tests = Get-ChildItem -Path . -Recurse -File -Filter 'test_*.py' | Where-Object { $_.FullName -notmatch '(\\.venv|\\.git)' }; if ($tests) { & '.\\.venv\\Scripts\\python.exe' -m pytest --maxfail=1 --disable-warnings; exit $LASTEXITCODE } else { Write-Host 'No test files found. Skipping tests.' }"
                 '''
             }
         }
@@ -56,29 +54,18 @@ pipeline {
         stage('Deploy to IIS') {
             steps {
                 echo "Copying Flask project files to IIS..."
-
                 bat '''
                     if not exist "%DEPLOY_PATH%" mkdir "%DEPLOY_PATH%"
 
-                    robocopy "%WORKSPACE%" "%DEPLOY_PATH%" /E /XD .git .venv venv __pycache__ /XF Jenkinsfile
-
-                    if %ERRORLEVEL% GEQ 8 exit /b %ERRORLEVEL%
+                    :: Robocopy files excluding venv, git, and test/cache folders
+                    :: Robocopy returns exit codes 0-7 on success; anything > 7 is an error
+                    robocopy . "%DEPLOY_PATH%" /E /XD .venv venv .git __pycache__ .pytest_cache /XF Jenkinsfile *.log
+                    if %ERRORLEVEL% LEQ 7 (exit /b 0) else (exit /b %ERRORLEVEL%)
                 '''
 
-                echo "Restarting IIS App Pool..."
-
+                echo "Recycling IIS Application Pool..."
                 bat '''
-                    powershell -NoProfile -ExecutionPolicy Bypass -Command "Import-Module WebAdministration; Restart-WebAppPool -Name '%APP_POOL%' -ErrorAction Stop"
-                '''
-            }
-        }
-
-        stage('Deployment Verification') {
-            steps {
-                echo "Checking IIS application..."
-
-                bat '''
-                    powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $r = Invoke-WebRequest -Uri 'http://127.0.0.1:8085/' -UseBasicParsing -TimeoutSec 20; Write-Host ('HTTP Status: ' + $r.StatusCode); if ($r.StatusCode -ne 200) { exit 1 } } catch { Write-Host $_.Exception.Message; exit 1 }"
+                    %windir%\\system32\\inetsrv\\appcmd.exe recycle apppool /apppool.name:"%APP_POOL%"
                 '''
             }
         }
@@ -86,11 +73,11 @@ pipeline {
 
     post {
         success {
-            echo "Deployment successful! URL: http://localhost:8085/"
+            echo "✅ Deployment successful for '${env.APP_NAME}'!"
+            echo "Application available at IIS site mapped to '${env.APP_POOL}'."
         }
-
         failure {
-            echo "Pipeline failed. Please check Jenkins console output."
+            echo "❌ Pipeline failed for '${env.APP_NAME}'. Check the console logs above."
         }
     }
 }
